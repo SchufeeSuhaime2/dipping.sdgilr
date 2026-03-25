@@ -11,6 +11,36 @@ TANK_TABLE_FOLDER = "data/tank_tables"
 DENSITY_TABLE_FILE = "data/density_table.csv"
 
 
+def clean_product_code(value):
+    if value is None:
+        return ""
+
+    if isinstance(value, bytes):
+        try:
+            return value.decode("utf-8").strip()
+        except Exception:
+            return "".join(chr(b) for b in value if 32 <= b <= 126)
+
+    if hasattr(value, "tolist") and not isinstance(value, str):
+        value = value.tolist()
+
+    if isinstance(value, (list, tuple)):
+        try:
+            return "".join(chr(int(x)) for x in value)
+        except Exception:
+            return "".join(str(x) for x in value)
+
+    text = str(value).strip()
+
+    if "," in text and all(part.strip().isdigit() for part in text.split(",")):
+        try:
+            return "".join(chr(int(part.strip())) for part in text.split(","))
+        except Exception:
+            return text
+
+    return text
+
+
 def init_db():
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
@@ -34,7 +64,6 @@ def init_db():
         )
     """)
 
-    # Add missing columns if database already exists from old version
     cursor.execute("PRAGMA table_info(dipping_records)")
     columns = [row[1] for row in cursor.fetchall()]
 
@@ -52,7 +81,7 @@ def save_record(record):
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
 
-    product_code = str(record["product_code"])
+    product_code = clean_product_code(record["product_code"])
 
     cursor.execute("""
         INSERT INTO dipping_records (
@@ -92,13 +121,22 @@ def load_records(selected_date):
     """
     df = pd.read_sql_query(query, conn, params=(selected_date,))
     conn.close()
+
+    if "product_code" in df.columns:
+        df["product_code"] = df["product_code"].apply(clean_product_code)
+
     return df
 
 
 @st.cache_data
 def load_tank_master():
-    df = pd.read_csv(TANK_MASTER_FILE)
-    df["product_code"] = df["product_code"].astype(str)
+    df = pd.read_csv(
+        TANK_MASTER_FILE,
+        dtype={"tank_no": str, "product_code": str, "product_desc": str}
+    )
+    df["tank_no"] = df["tank_no"].astype(str).str.strip()
+    df["product_code"] = df["product_code"].apply(clean_product_code)
+    df["product_desc"] = df["product_desc"].astype(str).str.strip()
     return df
 
 
@@ -123,7 +161,7 @@ def load_density_table():
         return None
 
     df = pd.read_csv(DENSITY_TABLE_FILE)
-    df["product_code"] = df["product_code"].astype(str)
+    df["product_code"] = df["product_code"].astype(str).apply(clean_product_code)
     df["temp_c"] = pd.to_numeric(df["temp_c"], errors="coerce")
     df["density"] = pd.to_numeric(df["density"], errors="coerce")
     df = df.dropna(subset=["product_code", "temp_c", "density"]).copy()
@@ -173,7 +211,8 @@ def find_density(product_code, temp_c):
     if df is None or df.empty:
         return None
 
-    df_product = df[df["product_code"] == str(product_code)].copy()
+    product_code = clean_product_code(product_code)
+    df_product = df[df["product_code"] == product_code].copy()
     if df_product.empty:
         return None
 
@@ -236,8 +275,8 @@ def main():
             tank_no = st.selectbox("Tank No", tank_master["tank_no"].tolist())
 
         tank_info = tank_master[tank_master["tank_no"] == tank_no].iloc[0]
-        product_code = str(tank_info["product_code"])
-        product_desc = tank_info["product_desc"]
+        product_code = clean_product_code(tank_info["product_code"])
+        product_desc = str(tank_info["product_desc"]).strip()
 
         with col3:
             flowmeter = st.number_input("Flowmeter", min_value=0.0, value=0.0, step=1.0)
