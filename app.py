@@ -52,6 +52,7 @@ def clean_excel_text(value):
     )
     return cleaned
 
+
 def init_db():
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
@@ -93,6 +94,7 @@ def init_db():
 
     conn.commit()
     conn.close()
+
 
 def save_record(record):
     conn = sqlite3.connect(DB_FILE)
@@ -290,7 +292,6 @@ def prepare_display_table(records_df):
     display_df = records_df.copy()
 
     display_df.insert(0, "No", range(1, len(display_df) + 1))
-    display_df["Delete"] = False
 
     display_df = display_df.rename(columns={
         "tank_no": "Tank No",
@@ -320,7 +321,6 @@ def prepare_display_table(records_df):
         "Flowmeter",
         "Volume (L)",
         "Tonnage (MT)",
-        "Delete",
     ]
 
     display_df = display_df[columns_order]
@@ -345,59 +345,22 @@ def prepare_display_table(records_df):
     return display_df
 
 
+def style_center_table(df):
+    return (
+        df.style
+        .hide(axis="index")
+        .set_properties(**{
+            "text-align": "center"
+        })
+        .set_table_styles([
+            {"selector": "th", "props": [("text-align", "center")]},
+            {"selector": "td", "props": [("text-align", "center")]},
+        ])
+    )
+
+
 def main():
     st.set_page_config(page_title="Daily Dipping App", layout="wide")
-
-    st.markdown("""
-    <style>
-    /* Make all st.data_editor text centered */
-    div[data-testid="stDataEditor"] [role="columnheader"] {
-        text-align: center !important;
-        justify-content: center !important;
-        display: flex !important;
-        align-items: center !important;
-    }
-
-    div[data-testid="stDataEditor"] [role="columnheader"] * {
-        text-align: center !important;
-        justify-content: center !important;
-    }
-
-    div[data-testid="stDataEditor"] [role="gridcell"] {
-        text-align: center !important;
-        justify-content: center !important;
-        display: flex !important;
-        align-items: center !important;
-    }
-
-    div[data-testid="stDataEditor"] [role="gridcell"] * {
-        text-align: center !important;
-        justify-content: center !important;
-        margin-left: auto !important;
-        margin-right: auto !important;
-    }
-
-    /* Fallback for older Streamlit table structure */
-    div[data-testid="stDataEditor"] table td,
-    div[data-testid="stDataEditor"] table th {
-        text-align: center !important;
-        vertical-align: middle !important;
-    }
-
-    div[data-testid="stDataEditor"] table td div,
-    div[data-testid="stDataEditor"] table th div {
-        justify-content: center !important;
-        text-align: center !important;
-    }
-
-    /* center checkbox */
-    div[data-testid="stDataEditor"] input[type="checkbox"] {
-        display: block !important;
-        margin-left: auto !important;
-        margin-right: auto !important;
-    }
-    </style>
-    """, unsafe_allow_html=True)
 
     st.title("Daily Dipping Tank Stock")
     st.caption("MVP version")
@@ -517,45 +480,27 @@ def main():
         else:
             display_df = prepare_display_table(records_df)
 
-            edited_df = st.data_editor(
-                display_df,
+            # centered table for display
+            view_df = display_df.drop(columns=["id"], errors="ignore")
+            st.dataframe(
+                style_center_table(view_df),
                 use_container_width=True,
-                hide_index=True,
-                disabled=[
-                    "No",
-                    "Tank No",
-                    "Product Code",
-                    "Product Desc",
-                    "Temp (°C)",
-                    "Density",
-                    "Dipping Level (mm)",
-                    "Dipping Mark (mm)",
-                    "Empty Space (mm)",
-                    "Flowmeter",
-                    "Volume (L)",
-                    "Tonnage (MT)",
-                ],
-                column_config={
-                    "id": None,
-                    "Delete": st.column_config.CheckboxColumn(
-                        "Delete",
-                        help="Tick row to delete",
-                        default=False,
-                    ),
-                },
-                key="daily_records_editor"
+                hide_index=True
             )
 
-            rows_to_delete = edited_df[edited_df["Delete"] == True]
+            st.markdown("### Delete Row")
 
-            if not rows_to_delete.empty:
-                st.warning(f"{len(rows_to_delete)} row(s) selected for delete.")
+            delete_options = view_df["No"].tolist()
+            selected_rows_no = st.multiselect(
+                "Select row number(s) to delete",
+                options=delete_options
+            )
 
             if st.button("Delete Selected Row(s)", type="secondary"):
-                if rows_to_delete.empty:
-                    st.error("Please tick at least one row to delete.")
+                if not selected_rows_no:
+                    st.error("Please select at least one row to delete.")
                 else:
-                    delete_ids = rows_to_delete["id"].tolist()
+                    delete_ids = display_df[display_df["No"].isin(selected_rows_no)]["id"].tolist()
                     delete_records(delete_ids)
                     st.success(f"{len(delete_ids)} row(s) deleted successfully.")
                     st.rerun()
