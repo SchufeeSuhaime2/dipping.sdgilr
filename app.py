@@ -52,7 +52,6 @@ def clean_excel_text(value):
     )
     return cleaned
 
-
 def init_db():
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
@@ -75,6 +74,22 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
+
+    cursor.execute("PRAGMA table_info(dipping_records)")
+    existing_columns = [row[1] for row in cursor.fetchall()]
+
+    missing_columns = {
+        "density": "ALTER TABLE dipping_records ADD COLUMN density REAL",
+        "tonnage_mt": "ALTER TABLE dipping_records ADD COLUMN tonnage_mt REAL",
+        "created_at": "ALTER TABLE dipping_records ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+    }
+
+    for col_name, alter_sql in missing_columns.items():
+        if col_name not in existing_columns:
+            try:
+                cursor.execute(alter_sql)
+            except sqlite3.OperationalError:
+                pass
 
     conn.commit()
     conn.close()
