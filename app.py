@@ -345,31 +345,51 @@ def main():
 
     st.markdown("""
     <style>
-    /* center table header */
-    div[data-testid="stDataEditor"] thead tr th {
+    /* Make all st.data_editor text centered */
+    div[data-testid="stDataEditor"] [role="columnheader"] {
         text-align: center !important;
-    }
-
-    div[data-testid="stDataEditor"] thead tr th div {
         justify-content: center !important;
-        text-align: center !important;
+        display: flex !important;
+        align-items: center !important;
     }
 
-    /* center all table cells */
-    div[data-testid="stDataEditor"] tbody tr td {
+    div[data-testid="stDataEditor"] [role="columnheader"] * {
         text-align: center !important;
-    }
-
-    div[data-testid="stDataEditor"] tbody tr td div {
         justify-content: center !important;
-        text-align: center !important;
     }
 
-    /* center checkbox column too */
-    div[data-testid="stDataEditor"] input[type="checkbox"] {
+    div[data-testid="stDataEditor"] [role="gridcell"] {
+        text-align: center !important;
+        justify-content: center !important;
+        display: flex !important;
+        align-items: center !important;
+    }
+
+    div[data-testid="stDataEditor"] [role="gridcell"] * {
+        text-align: center !important;
+        justify-content: center !important;
         margin-left: auto !important;
         margin-right: auto !important;
+    }
+
+    /* Fallback for older Streamlit table structure */
+    div[data-testid="stDataEditor"] table td,
+    div[data-testid="stDataEditor"] table th {
+        text-align: center !important;
+        vertical-align: middle !important;
+    }
+
+    div[data-testid="stDataEditor"] table td div,
+    div[data-testid="stDataEditor"] table th div {
+        justify-content: center !important;
+        text-align: center !important;
+    }
+
+    /* center checkbox */
+    div[data-testid="stDataEditor"] input[type="checkbox"] {
         display: block !important;
+        margin-left: auto !important;
+        margin-right: auto !important;
     }
     </style>
     """, unsafe_allow_html=True)
