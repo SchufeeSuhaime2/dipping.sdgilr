@@ -274,23 +274,87 @@ def calculate_tonnage(volume_litres, density):
 
 
 def render_records_with_delete(records_df):
-    display_columns = [
-        "record_date", "tank_no", "product_code", "product_desc", "temp_c",
-        "density", "dipping_level_mm", "dipping_mark_mm", "empty_space_mm",
-        "flowmeter", "volume_litres", "tonnage_mt", "created_at"
+    st.markdown("""
+    <style>
+    div[data-testid="stHorizontalBlock"] {
+        align-items: stretch !important;
+    }
+
+    .record-cell {
+        border: 1px solid #3a3a3a;
+        padding: 8px 10px;
+        min-height: 54px;
+        display: flex;
+        align-items: center;
+        font-size: 14px;
+        border-radius: 0;
+        word-break: break-word;
+    }
+
+    .record-header {
+        border: 1px solid #5a5a5a;
+        padding: 8px 10px;
+        min-height: 54px;
+        display: flex;
+        align-items: center;
+        font-weight: 700;
+        background-color: #111111;
+        border-radius: 0;
+        font-size: 14px;
+    }
+
+    .record-row-gap {
+        margin-top: -1px;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    display_df = records_df.copy()
+
+    display_df.insert(0, "No", range(1, len(display_df) + 1))
+
+    columns_to_show = [
+        "No",
+        "tank_no",
+        "product_code",
+        "product_desc",
+        "temp_c",
+        "density",
+        "dipping_level_mm",
+        "dipping_mark_mm",
+        "empty_space_mm",
+        "flowmeter",
+        "volume_litres",
+        "tonnage_mt",
     ]
 
-    header_cols = st.columns([1.2, 0.8, 1.2, 1.3, 0.7, 0.7, 1.1, 1.1, 1.1, 0.8, 1.0, 0.9, 1.3, 0.9])
+    headers = [
+        "No",
+        "Tank No",
+        "Product Code",
+        "Product Desc",
+        "Temp (°C)",
+        "Density",
+        "Dipping Level (mm)",
+        "Dipping Mark (mm)",
+        "Empty Space (mm)",
+        "Flowmeter",
+        "Volume (L)",
+        "Tonnage (MT)",
+        "Delete"
+    ]
 
-    headers = display_columns + ["delete"]
+    column_widths = [0.5, 0.7, 1.1, 1.3, 0.7, 0.7, 1.0, 1.0, 1.0, 0.8, 0.9, 0.9, 0.8]
+
+    header_cols = st.columns(column_widths)
     for col, header in zip(header_cols, headers):
-        col.markdown(f"**{header}**")
+        col.markdown(f"<div class='record-header'>{header}</div>", unsafe_allow_html=True)
 
-    for _, row in records_df.iterrows():
-        row_cols = st.columns([1.2, 0.8, 1.2, 1.3, 0.7, 0.7, 1.1, 1.1, 1.1, 0.8, 1.0, 0.9, 1.3, 0.9])
+    for _, row in display_df.iterrows():
+        row_cols = st.columns(column_widths)
 
         values = [
-            row["record_date"],
+            row["No"],
             row["tank_no"],
             row["product_code"],
             row["product_desc"],
@@ -302,20 +366,33 @@ def render_records_with_delete(records_df):
             row["flowmeter"],
             row["volume_litres"],
             row["tonnage_mt"],
-            row["created_at"],
         ]
 
         for i, value in enumerate(values):
             if pd.isna(value):
                 show_value = ""
+            elif isinstance(value, float):
+                if columns_to_show[i] == "density":
+                    show_value = f"{value:.4f}"
+                elif columns_to_show[i] == "tonnage_mt":
+                    show_value = f"{value:.3f}"
+                else:
+                    show_value = f"{value:.1f}"
             else:
                 show_value = str(value)
-            row_cols[i].write(show_value)
 
-        if row_cols[-1].button("Delete", key=f"delete_{row['id']}"):
-            delete_record(row["id"])
-            st.success(f"Row deleted: Tank {row['tank_no']} | Created {row['created_at']}")
-            st.rerun()
+            row_cols[i].markdown(
+                f"<div class='record-cell'>{show_value}</div>",
+                unsafe_allow_html=True
+            )
+
+        with row_cols[-1]:
+            st.markdown("<div class='record-cell'>", unsafe_allow_html=True)
+            if st.button("Delete", key=f"delete_{row['id']}"):
+                delete_record(row["id"])
+                st.success(f"Row deleted: Tank {row['tank_no']}")
+                st.rerun()
+            st.markdown("</div>", unsafe_allow_html=True)
 
 
 def main():
