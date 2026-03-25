@@ -52,6 +52,8 @@ def save_record(record):
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
 
+    product_code = str(record["product_code"])
+
     cursor.execute("""
         INSERT INTO dipping_records (
             record_date, tank_no, product_code, product_desc,
@@ -60,18 +62,18 @@ def save_record(record):
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
-        record["record_date"],
-        record["tank_no"],
-        record["product_code"],
-        record["product_desc"],
-        record["temp_c"],
-        record["density"],
-        record["dipping_level_mm"],
-        record["dipping_mark_mm"],
-        record["empty_space_mm"],
-        record["flowmeter"],
-        record["volume_litres"],
-        record["tonnage_mt"],
+        str(record["record_date"]),
+        str(record["tank_no"]),
+        product_code,
+        str(record["product_desc"]),
+        float(record["temp_c"]),
+        float(record["density"]),
+        float(record["dipping_level_mm"]),
+        float(record["dipping_mark_mm"]),
+        float(record["empty_space_mm"]),
+        float(record["flowmeter"]),
+        float(record["volume_litres"]),
+        float(record["tonnage_mt"]),
     ))
 
     conn.commit()
