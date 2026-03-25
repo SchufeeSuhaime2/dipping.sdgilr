@@ -1,5 +1,5 @@
 __pycache__/
 *.pyc
-dipping.db
 .env
 .venv/
+dipping_records_*.xlsx
