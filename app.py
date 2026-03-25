@@ -123,10 +123,18 @@ def save_record(record):
     conn.close()
 
 
+def delete_record(record_id):
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM dipping_records WHERE id = ?", (int(record_id),))
+    conn.commit()
+    conn.close()
+
+
 def load_records(selected_date):
     conn = sqlite3.connect(DB_FILE)
     query = """
-        SELECT record_date, tank_no, product_code, product_desc,
+        SELECT id, record_date, tank_no, product_code, product_desc,
                temp_c, density, dipping_level_mm, dipping_mark_mm,
                empty_space_mm, flowmeter, volume_litres, tonnage_mt, created_at
         FROM dipping_records
@@ -386,9 +394,27 @@ def main():
         else:
             st.dataframe(records_df, use_container_width=True)
 
+            st.markdown("### Delete Row")
+
+            delete_options = [
+                f'ID {row["id"]} | Tank {row["tank_no"]} | Empty {row["empty_space_mm"]} | Volume {row["volume_litres"]} | Created {row["created_at"]}'
+                for _, row in records_df.iterrows()
+            ]
+
+            selected_option = st.selectbox("Select row to delete", delete_options)
+
+            selected_id = int(selected_option.split("|")[0].replace("ID", "").strip())
+
+            if st.button("Delete Selected Row", type="secondary"):
+                delete_record(selected_id)
+                st.success(f"Row ID {selected_id} deleted successfully.")
+                st.rerun()
+
             output_file = f"dipping_records_{selected_date}.xlsx"
 
             export_df = records_df.copy()
+            export_df = export_df.drop(columns=["id"], errors="ignore")
+
             for col in export_df.columns:
                 if export_df[col].dtype == object:
                     export_df[col] = export_df[col].apply(clean_excel_text)
