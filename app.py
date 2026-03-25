@@ -137,7 +137,7 @@ def load_records(selected_date):
                empty_space_mm, flowmeter, volume_litres, tonnage_mt, created_at
         FROM dipping_records
         WHERE record_date = ?
-        ORDER BY tank_no, created_at
+        ORDER BY created_at ASC
     """
     df = pd.read_sql_query(query, conn, params=(selected_date,))
     conn.close()
@@ -273,126 +273,48 @@ def calculate_tonnage(volume_litres, density):
     return float((volume_litres * density) / 1000)
 
 
-def render_records_with_delete(records_df):
-    st.markdown("""
-    <style>
-    div[data-testid="stHorizontalBlock"] {
-        align-items: stretch !important;
-    }
-
-    .record-cell {
-        border: 1px solid #3a3a3a;
-        padding: 8px 10px;
-        min-height: 54px;
-        display: flex;
-        align-items: center;
-        font-size: 14px;
-        border-radius: 0;
-        word-break: break-word;
-    }
-
-    .record-header {
-        border: 1px solid #5a5a5a;
-        padding: 8px 10px;
-        min-height: 54px;
-        display: flex;
-        align-items: center;
-        font-weight: 700;
-        background-color: #111111;
-        border-radius: 0;
-        font-size: 14px;
-    }
-
-    .record-row-gap {
-        margin-top: -1px;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
+def prepare_display_table(records_df):
     display_df = records_df.copy()
 
     display_df.insert(0, "No", range(1, len(display_df) + 1))
 
-    columns_to_show = [
-        "No",
-        "tank_no",
-        "product_code",
-        "product_desc",
-        "temp_c",
-        "density",
-        "dipping_level_mm",
-        "dipping_mark_mm",
-        "empty_space_mm",
-        "flowmeter",
-        "volume_litres",
-        "tonnage_mt",
-    ]
+    display_df = display_df.drop(
+        columns=["id", "record_date", "created_at"],
+        errors="ignore"
+    )
 
-    headers = [
-        "No",
-        "Tank No",
-        "Product Code",
-        "Product Desc",
-        "Temp (°C)",
-        "Density",
-        "Dipping Level (mm)",
-        "Dipping Mark (mm)",
-        "Empty Space (mm)",
-        "Flowmeter",
-        "Volume (L)",
-        "Tonnage (MT)",
-        "Delete"
-    ]
+    display_df = display_df.rename(columns={
+        "tank_no": "Tank No",
+        "product_code": "Product Code",
+        "product_desc": "Product Desc",
+        "temp_c": "Temp (°C)",
+        "density": "Density",
+        "dipping_level_mm": "Dipping Level (mm)",
+        "dipping_mark_mm": "Dipping Mark (mm)",
+        "empty_space_mm": "Empty Space (mm)",
+        "flowmeter": "Flowmeter",
+        "volume_litres": "Volume (L)",
+        "tonnage_mt": "Tonnage (MT)",
+    })
 
-    column_widths = [0.5, 0.7, 1.1, 1.3, 0.7, 0.7, 1.0, 1.0, 1.0, 0.8, 0.9, 0.9, 0.8]
+    if "Density" in display_df.columns:
+        display_df["Density"] = display_df["Density"].map(lambda x: f"{x:.4f}" if pd.notna(x) else "")
+    if "Temp (°C)" in display_df.columns:
+        display_df["Temp (°C)"] = display_df["Temp (°C)"].map(lambda x: f"{x:.1f}" if pd.notna(x) else "")
+    if "Dipping Level (mm)" in display_df.columns:
+        display_df["Dipping Level (mm)"] = display_df["Dipping Level (mm)"].map(lambda x: f"{x:.1f}" if pd.notna(x) else "")
+    if "Dipping Mark (mm)" in display_df.columns:
+        display_df["Dipping Mark (mm)"] = display_df["Dipping Mark (mm)"].map(lambda x: f"{x:.1f}" if pd.notna(x) else "")
+    if "Empty Space (mm)" in display_df.columns:
+        display_df["Empty Space (mm)"] = display_df["Empty Space (mm)"].map(lambda x: f"{x:.1f}" if pd.notna(x) else "")
+    if "Flowmeter" in display_df.columns:
+        display_df["Flowmeter"] = display_df["Flowmeter"].map(lambda x: f"{x:.1f}" if pd.notna(x) else "")
+    if "Volume (L)" in display_df.columns:
+        display_df["Volume (L)"] = display_df["Volume (L)"].map(lambda x: f"{x:.1f}" if pd.notna(x) else "")
+    if "Tonnage (MT)" in display_df.columns:
+        display_df["Tonnage (MT)"] = display_df["Tonnage (MT)"].map(lambda x: f"{x:.3f}" if pd.notna(x) else "")
 
-    header_cols = st.columns(column_widths)
-    for col, header in zip(header_cols, headers):
-        col.markdown(f"<div class='record-header'>{header}</div>", unsafe_allow_html=True)
-
-    for _, row in display_df.iterrows():
-        row_cols = st.columns(column_widths)
-
-        values = [
-            row["No"],
-            row["tank_no"],
-            row["product_code"],
-            row["product_desc"],
-            row["temp_c"],
-            row["density"],
-            row["dipping_level_mm"],
-            row["dipping_mark_mm"],
-            row["empty_space_mm"],
-            row["flowmeter"],
-            row["volume_litres"],
-            row["tonnage_mt"],
-        ]
-
-        for i, value in enumerate(values):
-            if pd.isna(value):
-                show_value = ""
-            elif isinstance(value, float):
-                if columns_to_show[i] == "density":
-                    show_value = f"{value:.4f}"
-                elif columns_to_show[i] == "tonnage_mt":
-                    show_value = f"{value:.3f}"
-                else:
-                    show_value = f"{value:.1f}"
-            else:
-                show_value = str(value)
-
-            row_cols[i].markdown(
-                f"<div class='record-cell'>{show_value}</div>",
-                unsafe_allow_html=True
-            )
-
-        with row_cols[-1]:
-            st.markdown("<div class='record-cell'>", unsafe_allow_html=True)
-            if st.button("Delete", key=f"delete_{row['id']}"):
-                delete_record(row["id"])
-                st.success(f"Row deleted: Tank {row['tank_no']}")
-                st.rerun()
-            st.markdown("</div>", unsafe_allow_html=True)
+    return display_df
 
 
 def main():
@@ -503,6 +425,7 @@ def main():
                 }
                 save_record(record)
                 st.success("Record saved successfully.")
+                st.rerun()
 
     with tab2:
         st.subheader("Daily Records")
@@ -512,7 +435,27 @@ def main():
         if records_df.empty:
             st.info("No records found for this date.")
         else:
-            render_records_with_delete(records_df)
+            display_df = prepare_display_table(records_df)
+
+            st.dataframe(display_df, use_container_width=True, hide_index=True)
+
+            st.markdown("### Delete Record")
+
+            delete_options = {
+                f"No {i + 1} - Tank {records_df.iloc[i]['tank_no']} - {records_df.iloc[i]['product_desc']}": int(records_df.iloc[i]["id"])
+                for i in range(len(records_df))
+            }
+
+            selected_delete = st.selectbox(
+                "Select row to delete",
+                options=list(delete_options.keys())
+            )
+
+            if st.button("Delete Selected Row", type="secondary"):
+                record_id_to_delete = delete_options[selected_delete]
+                delete_record(record_id_to_delete)
+                st.success("Row deleted successfully.")
+                st.rerun()
 
             output_file = f"dipping_records_{selected_date}.xlsx"
 
