@@ -342,6 +342,38 @@ def prepare_display_table(records_df):
 
 def main():
     st.set_page_config(page_title="Daily Dipping App", layout="wide")
+
+    st.markdown("""
+    <style>
+    /* center table header */
+    div[data-testid="stDataEditor"] thead tr th {
+        text-align: center !important;
+    }
+
+    div[data-testid="stDataEditor"] thead tr th div {
+        justify-content: center !important;
+        text-align: center !important;
+    }
+
+    /* center all table cells */
+    div[data-testid="stDataEditor"] tbody tr td {
+        text-align: center !important;
+    }
+
+    div[data-testid="stDataEditor"] tbody tr td div {
+        justify-content: center !important;
+        text-align: center !important;
+    }
+
+    /* center checkbox column too */
+    div[data-testid="stDataEditor"] input[type="checkbox"] {
+        margin-left: auto !important;
+        margin-right: auto !important;
+        display: block !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
     st.title("Daily Dipping Tank Stock")
     st.caption("MVP version")
 
