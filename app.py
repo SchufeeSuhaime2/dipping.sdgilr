@@ -41,6 +41,20 @@ def clean_product_code(value):
     return text
 
 
+def clean_excel_text(value):
+    if pd.isna(value):
+        return value
+
+    text = str(value)
+
+    cleaned = "".join(
+        ch for ch in text
+        if ch in ("\t", "\n", "\r") or ord(ch) >= 32
+    )
+
+    return cleaned
+
+
 def init_db():
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
@@ -117,7 +131,7 @@ def load_records(selected_date):
                empty_space_mm, flowmeter, volume_litres, tonnage_mt, created_at
         FROM dipping_records
         WHERE record_date = ?
-        ORDER BY tank_no
+        ORDER BY tank_no, created_at
     """
     df = pd.read_sql_query(query, conn, params=(selected_date,))
     conn.close()
@@ -373,7 +387,13 @@ def main():
             st.dataframe(records_df, use_container_width=True)
 
             output_file = f"dipping_records_{selected_date}.xlsx"
-            records_df.to_excel(output_file, index=False)
+
+            export_df = records_df.copy()
+            for col in export_df.columns:
+                if export_df[col].dtype == object:
+                    export_df[col] = export_df[col].apply(clean_excel_text)
+
+            export_df.to_excel(output_file, index=False)
 
             with open(output_file, "rb") as f:
                 st.download_button(
