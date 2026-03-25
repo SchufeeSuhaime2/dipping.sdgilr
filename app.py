@@ -121,10 +121,18 @@ def save_record(record):
     conn.close()
 
 
-def delete_record(record_id):
+def delete_records(record_ids):
+    if not record_ids:
+        return
+
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM dipping_records WHERE id = ?", (int(record_id),))
+
+    cursor.executemany(
+        "DELETE FROM dipping_records WHERE id = ?",
+        [(int(record_id),) for record_id in record_ids]
+    )
+
     conn.commit()
     conn.close()
 
@@ -277,11 +285,7 @@ def prepare_display_table(records_df):
     display_df = records_df.copy()
 
     display_df.insert(0, "No", range(1, len(display_df) + 1))
-
-    display_df = display_df.drop(
-        columns=["id", "record_date", "created_at"],
-        errors="ignore"
-    )
+    display_df["Delete"] = False
 
     display_df = display_df.rename(columns={
         "tank_no": "Tank No",
@@ -297,22 +301,41 @@ def prepare_display_table(records_df):
         "tonnage_mt": "Tonnage (MT)",
     })
 
+    columns_order = [
+        "id",
+        "No",
+        "Tank No",
+        "Product Code",
+        "Product Desc",
+        "Temp (°C)",
+        "Density",
+        "Dipping Level (mm)",
+        "Dipping Mark (mm)",
+        "Empty Space (mm)",
+        "Flowmeter",
+        "Volume (L)",
+        "Tonnage (MT)",
+        "Delete",
+    ]
+
+    display_df = display_df[columns_order]
+
     if "Density" in display_df.columns:
-        display_df["Density"] = display_df["Density"].map(lambda x: f"{x:.4f}" if pd.notna(x) else "")
+        display_df["Density"] = display_df["Density"].map(lambda x: round(x, 4) if pd.notna(x) else None)
     if "Temp (°C)" in display_df.columns:
-        display_df["Temp (°C)"] = display_df["Temp (°C)"].map(lambda x: f"{x:.1f}" if pd.notna(x) else "")
+        display_df["Temp (°C)"] = display_df["Temp (°C)"].map(lambda x: round(x, 1) if pd.notna(x) else None)
     if "Dipping Level (mm)" in display_df.columns:
-        display_df["Dipping Level (mm)"] = display_df["Dipping Level (mm)"].map(lambda x: f"{x:.1f}" if pd.notna(x) else "")
+        display_df["Dipping Level (mm)"] = display_df["Dipping Level (mm)"].map(lambda x: round(x, 1) if pd.notna(x) else None)
     if "Dipping Mark (mm)" in display_df.columns:
-        display_df["Dipping Mark (mm)"] = display_df["Dipping Mark (mm)"].map(lambda x: f"{x:.1f}" if pd.notna(x) else "")
+        display_df["Dipping Mark (mm)"] = display_df["Dipping Mark (mm)"].map(lambda x: round(x, 1) if pd.notna(x) else None)
     if "Empty Space (mm)" in display_df.columns:
-        display_df["Empty Space (mm)"] = display_df["Empty Space (mm)"].map(lambda x: f"{x:.1f}" if pd.notna(x) else "")
+        display_df["Empty Space (mm)"] = display_df["Empty Space (mm)"].map(lambda x: round(x, 1) if pd.notna(x) else None)
     if "Flowmeter" in display_df.columns:
-        display_df["Flowmeter"] = display_df["Flowmeter"].map(lambda x: f"{x:.1f}" if pd.notna(x) else "")
+        display_df["Flowmeter"] = display_df["Flowmeter"].map(lambda x: round(x, 1) if pd.notna(x) else None)
     if "Volume (L)" in display_df.columns:
-        display_df["Volume (L)"] = display_df["Volume (L)"].map(lambda x: f"{x:.1f}" if pd.notna(x) else "")
+        display_df["Volume (L)"] = display_df["Volume (L)"].map(lambda x: round(x, 1) if pd.notna(x) else None)
     if "Tonnage (MT)" in display_df.columns:
-        display_df["Tonnage (MT)"] = display_df["Tonnage (MT)"].map(lambda x: f"{x:.3f}" if pd.notna(x) else "")
+        display_df["Tonnage (MT)"] = display_df["Tonnage (MT)"].map(lambda x: round(x, 3) if pd.notna(x) else None)
 
     return display_df
 
@@ -437,25 +460,48 @@ def main():
         else:
             display_df = prepare_display_table(records_df)
 
-            st.dataframe(display_df, use_container_width=True, hide_index=True)
-
-            st.markdown("### Delete Record")
-
-            delete_options = {
-                f"No {i + 1} - Tank {records_df.iloc[i]['tank_no']} - {records_df.iloc[i]['product_desc']}": int(records_df.iloc[i]["id"])
-                for i in range(len(records_df))
-            }
-
-            selected_delete = st.selectbox(
-                "Select row to delete",
-                options=list(delete_options.keys())
+            edited_df = st.data_editor(
+                display_df,
+                use_container_width=True,
+                hide_index=True,
+                disabled=[
+                    "No",
+                    "Tank No",
+                    "Product Code",
+                    "Product Desc",
+                    "Temp (°C)",
+                    "Density",
+                    "Dipping Level (mm)",
+                    "Dipping Mark (mm)",
+                    "Empty Space (mm)",
+                    "Flowmeter",
+                    "Volume (L)",
+                    "Tonnage (MT)",
+                ],
+                column_config={
+                    "id": None,
+                    "Delete": st.column_config.CheckboxColumn(
+                        "Delete",
+                        help="Tick row to delete",
+                        default=False,
+                    ),
+                },
+                key="daily_records_editor"
             )
 
-            if st.button("Delete Selected Row", type="secondary"):
-                record_id_to_delete = delete_options[selected_delete]
-                delete_record(record_id_to_delete)
-                st.success("Row deleted successfully.")
-                st.rerun()
+            rows_to_delete = edited_df[edited_df["Delete"] == True]
+
+            if not rows_to_delete.empty:
+                st.warning(f"{len(rows_to_delete)} row(s) selected for delete.")
+
+            if st.button("Delete Selected Row(s)", type="secondary"):
+                if rows_to_delete.empty:
+                    st.error("Please tick at least one row to delete.")
+                else:
+                    delete_ids = rows_to_delete["id"].tolist()
+                    delete_records(delete_ids)
+                    st.success(f"{len(delete_ids)} row(s) deleted successfully.")
+                    st.rerun()
 
             output_file = f"dipping_records_{selected_date}.xlsx"
 
