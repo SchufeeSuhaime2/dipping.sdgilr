@@ -76,18 +76,8 @@ def init_db():
         )
     """)
 
-    cursor.execute("PRAGMA table_info(dipping_records)")
-    columns = [row[1] for row in cursor.fetchall()]
-
-    if "density" not in columns:
-        cursor.execute("ALTER TABLE dipping_records ADD COLUMN density REAL")
-
-    if "tonnage_mt" not in columns:
-        cursor.execute("ALTER TABLE dipping_records ADD COLUMN tonnage_mt REAL")
-
     conn.commit()
     conn.close()
-
 
 def save_record(record):
     conn = sqlite3.connect(DB_FILE)
