@@ -90,7 +90,20 @@ def load_tank_table(tank_no):
         return None
 
     df = pd.read_csv(file_path)
-    df = df.sort_values("ullage_mm", ascending=False).reset_index(drop=True)
+
+    # Make sure numeric columns are numeric
+    df["ullage_mm"] = pd.to_numeric(df["ullage_mm"], errors="coerce")
+    df["volume_litres"] = pd.to_numeric(df["volume_litres"], errors="coerce")
+
+    # Remove bad rows
+    df = df.dropna(subset=["ullage_mm", "volume_litres"]).copy()
+
+    # Remove duplicate ullage rows if any
+    df = df.drop_duplicates(subset=["ullage_mm"])
+
+    # Sort by ullage ascending for interpolation
+    df = df.sort_values("ullage_mm").reset_index(drop=True)
+
     return df
 
 
@@ -99,13 +112,41 @@ def find_volume_from_ullage(tank_no, empty_space_mm):
     if df is None or df.empty:
         return None
 
+    # Exact match
     exact_match = df[df["ullage_mm"] == empty_space_mm]
     if not exact_match.empty:
         return float(exact_match.iloc[0]["volume_litres"])
 
-    df["difference"] = (df["ullage_mm"] - empty_space_mm).abs()
-    nearest_row = df.loc[df["difference"].idxmin()]
-    return float(nearest_row["volume_litres"])
+    # Out of range check
+    min_ullage = df["ullage_mm"].min()
+    max_ullage = df["ullage_mm"].max()
+
+    if empty_space_mm < min_ullage or empty_space_mm > max_ullage:
+        return None
+
+    # Find lower and upper surrounding rows for interpolation
+    lower_rows = df[df["ullage_mm"] < empty_space_mm]
+    upper_rows = df[df["ullage_mm"] > empty_space_mm]
+
+    if lower_rows.empty or upper_rows.empty:
+        return None
+
+    lower_row = lower_rows.iloc[-1]
+    upper_row = upper_rows.iloc[0]
+
+    x1 = float(lower_row["ullage_mm"])
+    y1 = float(lower_row["volume_litres"])
+    x2 = float(upper_row["ullage_mm"])
+    y2 = float(upper_row["volume_litres"])
+
+    # Safety check
+    if x2 == x1:
+        return y1
+
+    # Linear interpolation
+    interpolated_volume = y1 + ((empty_space_mm - x1) / (x2 - x1)) * (y2 - y1)
+
+    return float(interpolated_volume)
 
 
 def main():
@@ -168,8 +209,9 @@ def main():
 
         if volume_litres is not None:
             st.success(f"Estimated Volume: {volume_litres:,.0f} L")
+            st.caption(f"Exact calculated volume: {volume_litres:,.2f} L")
         else:
-            st.warning("No tank table found or no matching volume data.")
+            st.warning("No tank table found or ullage is outside the available tank table range.")
 
         if dipping_mark_mm > dipping_level_mm:
             st.error("Dipping mark cannot be greater than dipping level.")
@@ -190,7 +232,7 @@ def main():
                     "dipping_mark_mm": dipping_mark_mm,
                     "empty_space_mm": empty_space_mm,
                     "flowmeter": flowmeter,
-                    "volume_litres": volume_litres,
+                    "volume_litres": round(volume_litres, 2),
                 }
                 save_record(record)
                 st.success("Record saved successfully.")
