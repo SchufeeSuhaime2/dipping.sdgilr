@@ -46,12 +46,10 @@ def clean_excel_text(value):
         return value
 
     text = str(value)
-
     cleaned = "".join(
         ch for ch in text
         if ch in ("\t", "\n", "\r") or ord(ch) >= 32
     )
-
     return cleaned
 
 
@@ -275,6 +273,51 @@ def calculate_tonnage(volume_litres, density):
     return float((volume_litres * density) / 1000)
 
 
+def render_records_with_delete(records_df):
+    display_columns = [
+        "record_date", "tank_no", "product_code", "product_desc", "temp_c",
+        "density", "dipping_level_mm", "dipping_mark_mm", "empty_space_mm",
+        "flowmeter", "volume_litres", "tonnage_mt", "created_at"
+    ]
+
+    header_cols = st.columns([1.2, 0.8, 1.2, 1.3, 0.7, 0.7, 1.1, 1.1, 1.1, 0.8, 1.0, 0.9, 1.3, 0.9])
+
+    headers = display_columns + ["delete"]
+    for col, header in zip(header_cols, headers):
+        col.markdown(f"**{header}**")
+
+    for _, row in records_df.iterrows():
+        row_cols = st.columns([1.2, 0.8, 1.2, 1.3, 0.7, 0.7, 1.1, 1.1, 1.1, 0.8, 1.0, 0.9, 1.3, 0.9])
+
+        values = [
+            row["record_date"],
+            row["tank_no"],
+            row["product_code"],
+            row["product_desc"],
+            row["temp_c"],
+            row["density"],
+            row["dipping_level_mm"],
+            row["dipping_mark_mm"],
+            row["empty_space_mm"],
+            row["flowmeter"],
+            row["volume_litres"],
+            row["tonnage_mt"],
+            row["created_at"],
+        ]
+
+        for i, value in enumerate(values):
+            if pd.isna(value):
+                show_value = ""
+            else:
+                show_value = str(value)
+            row_cols[i].write(show_value)
+
+        if row_cols[-1].button("Delete", key=f"delete_{row['id']}"):
+            delete_record(row["id"])
+            st.success(f"Row deleted: Tank {row['tank_no']} | Created {row['created_at']}")
+            st.rerun()
+
+
 def main():
     st.set_page_config(page_title="Daily Dipping App", layout="wide")
     st.title("Daily Dipping Tank Stock")
@@ -392,23 +435,7 @@ def main():
         if records_df.empty:
             st.info("No records found for this date.")
         else:
-            st.dataframe(records_df, use_container_width=True)
-
-            st.markdown("### Delete Row")
-
-            delete_options = [
-                f'ID {row["id"]} | Tank {row["tank_no"]} | Empty {row["empty_space_mm"]} | Volume {row["volume_litres"]} | Created {row["created_at"]}'
-                for _, row in records_df.iterrows()
-            ]
-
-            selected_option = st.selectbox("Select row to delete", delete_options)
-
-            selected_id = int(selected_option.split("|")[0].replace("ID", "").strip())
-
-            if st.button("Delete Selected Row", type="secondary"):
-                delete_record(selected_id)
-                st.success(f"Row ID {selected_id} deleted successfully.")
-                st.rerun()
+            render_records_with_delete(records_df)
 
             output_file = f"dipping_records_{selected_date}.xlsx"
 
